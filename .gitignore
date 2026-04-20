@@ -4,6 +4,26 @@ env/
 .env/
 .venv/
 
+# Node.js and Next.js
+node_modules/
+npm-debug.log
+yarn-error.log
+.pnp.*
+.next/
+out/
+build/
+dist/
+
+# Environment Variables
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+server/.env
+frontend/.env
+backend/.env
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
