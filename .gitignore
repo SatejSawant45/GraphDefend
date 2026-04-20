@@ -28,4 +28,5 @@ Thumbs.db
 *.swp
 *.swo
 
-architecture.md
+architecture.md.env
+server/.env
