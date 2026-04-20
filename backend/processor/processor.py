@@ -79,6 +79,14 @@ class FlowProcessor:
             iat_mean = df['iat'].mean() if total_packets > 1 else 0.0
             iat_max = df['iat'].max() if total_packets > 1 else 0.0
             
+            # Simple Shannon Entropy over payload lengths as a proxy for feature entropy
+            try:
+                val_counts = df['payload_len'].value_counts(normalize=True)
+                import numpy as np
+                entropy = -(val_counts * np.log2(val_counts)).sum()
+            except Exception:
+                entropy = 0.0
+            
             # TCP Flags Count (Parsing from string representation)
             syn_count = df['tcp_flags'].apply(lambda x: "S" in str(x)).sum()
             ack_count = df['tcp_flags'].apply(lambda x: "A" in str(x)).sum()
@@ -101,6 +109,7 @@ class FlowProcessor:
                 "pkt_len_std": float(pkt_len_std),
                 "iat_mean": float(iat_mean) if pd.notna(iat_mean) else 0.0,
                 "iat_max": float(iat_max) if pd.notna(iat_max) else 0.0,
+                "entropy": float(entropy),
                 "syn_count": int(syn_count),
                 "ack_count": int(ack_count),
                 "psh_count": int(psh_count),

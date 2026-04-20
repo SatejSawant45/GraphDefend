@@ -25,7 +25,10 @@ class SentinelBrain:
             return []
             
         # Keep original metadata for the UI (Layer 4)
-        metadata = df[['flow_id', 'src_ip', 'dst_ip']].to_dict(orient='records')
+        metadata_cols = ['flow_id', 'src_ip', 'dst_ip', 'protocol', 'total_bytes', 'total_packets', 'flow_duration_sec', 'iat_mean', 'syn_count', 'entropy']
+        # Safely extract existing columns
+        available_cols = [col for col in metadata_cols if col in df.columns]
+        metadata = df[available_cols].to_dict(orient='records')
         
         # 1. Pipeline: Scale and Encode
         X_scaled = self.pipeline.preprocess(df, is_training=False)
@@ -56,9 +59,16 @@ class SentinelBrain:
                 color = "Red"
                 
             results.append({
-                "flow_id": metadata[i]['flow_id'],
-                "src_ip": metadata[i]['src_ip'],
-                "dst_ip": metadata[i]['dst_ip'],
+                "flow_id": metadata[i].get('flow_id', 'unknown'),
+                "src_ip": metadata[i].get('src_ip', 'unknown'),
+                "dst_ip": metadata[i].get('dst_ip', 'unknown'),
+                "protocol": metadata[i].get('protocol', 'unknown'),
+                "total_bytes": float(metadata[i].get('total_bytes', 0)),
+                "total_packets": int(metadata[i].get('total_packets', 0)),
+                "duration": float(metadata[i].get('flow_duration_sec', 0)),
+                "iat": float(metadata[i].get('iat_mean', 0)),
+                "syn_count": int(metadata[i].get('syn_count', 0)),
+                "entropy": float(metadata[i].get('entropy', 0.0)),
                 "reconstruction_error": float(error),
                 "threat_score": float(threat_score),
                 "status": status,
