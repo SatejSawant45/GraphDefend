@@ -85,16 +85,18 @@ export default function Dashboard() {
           <MetricsCards mlData={mlData} />
         </section>
 
-        {/* Top Row - Threat Heartbeat, Feature Vectors, Structural GNN */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+        {/* Structural GNN (Full Width Row) */}
+        <div className="mb-6">
+          <NetworkGraph threatLevel={threatLevel} mlData={mlData} />
+        </div>
+
+        {/* Second Row - Threat Heartbeat & Feature Vectors */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
           <div>
             <ThreatHeartbeat threatLevel={threatLevel} />
           </div>
           <div>
             <FeatureVectors threatLevel={threatLevel} />
-          </div>
-          <div>
-            <NetworkGraph threatLevel={threatLevel} mlData={mlData} />
           </div>
         </div>
 

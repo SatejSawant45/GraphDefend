@@ -80,7 +80,7 @@ export default function NetworkGraph({ threatLevel = 7.3, mlData = [] }: Network
         <p className="text-sm text-muted-foreground">Network topology & anomalous connections</p>
       </div>
 
-      <div className={`rounded-lg p-4 h-80 flex items-center justify-center border relative overflow-hidden transition-colors ${isUnderAttack ? 'bg-red-950/20 border-red-500/30' : 'bg-black/20 border-border/50'}`}>
+      <div className={`rounded-lg p-4 h-96 flex items-center justify-center border relative overflow-hidden transition-colors ${isUnderAttack ? 'bg-red-950/20 border-red-500/30' : 'bg-black/20 border-border/50'}`}>
         <svg width="100%" height="100%" viewBox="0 0 100 100" className="absolute inset-0">
           {/* Draw edges */}
           {edges.map((edge, idx) => {
@@ -95,9 +95,9 @@ export default function NetworkGraph({ threatLevel = 7.3, mlData = [] }: Network
                 y1={`${from.y}%`}
                 x2={`${to.x}%`}
                 y2={`${to.y}%`}
-                stroke={shouldHighlight ? '#ef4444' : edge.suspicious ? '#ff6b6b' : 'rgba(255,255,255,0.2)'}
-                strokeWidth={shouldHighlight ? '3' : (edge.suspicious ? '2' : '1')}
-                strokeDasharray={edge.suspicious ? '0' : '2,2'}
+                stroke={shouldHighlight ? '#ef4444' : edge.suspicious ? '#ff6b6b' : 'rgba(255,255,255,0.1)'}
+                strokeWidth={shouldHighlight ? '1.5' : (edge.suspicious ? '1' : '0.5')}
+                strokeDasharray={edge.suspicious ? '0' : '1,1'}
               />
             );
           })}
@@ -119,20 +119,23 @@ export default function NetworkGraph({ threatLevel = 7.3, mlData = [] }: Network
                 <circle
                   cx={`${node.x}%`}
                   cy={`${node.y}%`}
-                  r="4"
+                  r="2"
                   fill={colors[node.type]}
                   opacity={isSelected ? 1 : 0.7}
-                  className="transition-opacity hover:opacity-100"
+                  className="transition-opacity hover:opacity-100 drop-shadow-md"
+                  stroke="rgba(0,0,0,0.5)"
+                  strokeWidth="0.5"
                 />
                 <text
                   x={`${node.x}%`}
-                  y={`${node.y + 8}%`}
+                  y={`${node.y + 4}%`}
                   textAnchor="middle"
-                  fontSize="2"
-                  fill="rgba(255,255,255,0.8)"
-                  className="pointer-events-none text-xs"
+                  fontSize="1.5"
+                  fill="rgba(255,255,255,0.7)"
+                  className="pointer-events-none font-mono tracking-tighter"
+                  style={{ textShadow: "0px 1px 2px rgba(0,0,0,0.9)" }}
                 >
-                  {node.label}
+                  {node.label.length > 12 ? node.label.substring(0,12) + "..." : node.label}
                 </text>
               </g>
             );
