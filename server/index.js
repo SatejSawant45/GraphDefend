@@ -10,6 +10,7 @@ const jwt = require('jsonwebtoken');
 
 // Import Models
 const User = require('./models/User');
+const Anomaly = require('./models/Anomaly');
 
 const app = express();
 const server = http.createServer(app);
@@ -82,6 +83,21 @@ app.post('/api/auth/login', async (req, res) => {
   }
 });
 
+// --- HISTORICAL DATA ROUTES ---
+app.get('/api/history', async (req, res) => {
+  try {
+    const limit = parseInt(req.query.limit) || 100;
+    // Fetch most recent anomalies
+    const anomalies = await Anomaly.find()
+      .sort({ timestamp: -1 })
+      .limit(limit);
+    res.status(200).json(anomalies);
+  } catch (error) {
+    console.error('Error fetching historical anomalies:', error);
+    res.status(500).json({ error: 'Failed to fetch historical data.' });
+  }
+});
+
 // --- ML & SOCKET.IO PIPELINE LOOP ---
 
 let isAttackSimulated = false;
@@ -144,6 +160,29 @@ setInterval(async () => {
     
     if (mlResults && mlResults.length > 0) {
       console.log(`[*] Sent ${rawPackets.length} real packets to FastAPI. Computed Threat Score: ${mlResults[0].threat_score}`);
+      
+      // Look for critical anomalies and store them in the database
+      const anomaliesToSave = mlResults.filter(result => result.threat_score > 0.8).map(result => ({
+          src_ip: result.src_ip || 'Unknown',
+          dst_ip: result.dst_ip || 'Unknown',
+          src_port: result.src_port || 0,
+          dst_port: result.dst_port || 0,
+          protocol: result.protocol || 'Unknown',
+          threat_score: result.threat_score,
+          reconstruction_error: result.reconstruction_error || null,
+          entropy: result.entropy || null,
+          timestamp: new Date()
+      }));
+      
+      if (anomaliesToSave.length > 0 && mongoose.connection.readyState === 1) {
+        try {
+          await Anomaly.insertMany(anomaliesToSave);
+          console.log(`[+] Saved ${anomaliesToSave.length} new anomalies to MongoDB.`);
+        } catch (dbErr) {
+          console.error('[-] Error saving to MongoDB:', dbErr.message);
+        }
+      }
+
       // Push the real PyTorch intelligence directly to the React frontend
       io.emit('network-update', mlResults);
     }

@@ -26,10 +26,27 @@ export default function Dashboard() {
   const [mlData, setMlData] = useState<any[]>([]);
 
   useEffect(() => {
-    // Listen for live data from the Python ML -> Node Pipeline
+    // 1. Fetch Historical Anomaly log on Mount
+    fetch('http://localhost:3001/api/history')
+      .then(res => res.json())
+      .then(data => {
+         if (data && data.length > 0) {
+            // Map MongoDB schema slightly to match local expectations if needed, or simply inject
+            setMlData(data);
+         }
+      })
+      .catch(err => console.error("Failed to load historical anomalies:", err));
+
+    // 2. Listen for live data from the Python ML -> Node Pipeline
     socket.on('network-update', (data: any[]) => {
       if (data && data.length > 0) {
-         setMlData(data);
+         setMlData(prevData => {
+           // Create a new array blending the latest update with previous history
+           // keeping the array size manageable (e.g. max 100 items)
+           const merged = [...data, ...prevData].slice(0, 100);
+           return merged;
+         });
+         
          // Get the threat score from the first flow (scale from 0-1 to 0-100)
          const newThreatScore = data[0].threat_score * 100;
          setThreatLevel(newThreatScore);

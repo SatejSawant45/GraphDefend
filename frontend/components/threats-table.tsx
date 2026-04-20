@@ -124,12 +124,12 @@ export default function ThreatsTable({ mlData }: ThreatsTableProps) {
 
     return {
       id: d.flow_id,
-      source: d.src_ip,
-      destination: d.dst_ip,
-      protocol: d.protocol,
-      dataVolume: `${(d.total_bytes / 1024).toFixed(2)} KB`,
-      duration: `${d.duration.toFixed(2)}s`,
-      reconstructionError: d.reconstruction_error,
+      source: d.src_ip || 'Unknown',
+      destination: d.dst_ip || 'Unknown',
+      protocol: d.protocol || 'Unknown',
+      dataVolume: d.total_bytes !== undefined ? `${(d.total_bytes / 1024).toFixed(2)} KB` : 'N/A',
+      duration: d.duration !== undefined ? `${d.duration.toFixed(2)}s` : 'N/A',
+      reconstructionError: d.reconstruction_error || 0,
       classification: classification as any,
       confidence: conf,
       timestamp: new Date().toLocaleTimeString()
