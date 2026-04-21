@@ -43,8 +43,12 @@ export default function Dashboard() {
       if (data && data.length > 0) {
          setMlData(prevData => {
            // Create a new array blending the latest update with previous history
-           // keeping the array size manageable (e.g. max 100 items)
-           const merged = [...data, ...prevData].slice(0, 100);
+           // Deduplicate using flow_id
+           const newItemsDict = new Map();
+           data.forEach(item => newItemsDict.set(item.flow_id, item));
+           const filteredPrev = prevData.filter(item => !newItemsDict.has(item.flow_id));
+           
+           const merged = [...data, ...filteredPrev].slice(0, 100);
            return merged;
          });
          

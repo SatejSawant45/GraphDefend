@@ -30,7 +30,7 @@ class SentinelBrain:
             return []
             
         # Keep original metadata for the UI (Layer 4)
-        metadata_cols = ['flow_id', 'src_ip', 'dst_ip', 'protocol', 'total_bytes', 'total_packets', 'flow_duration_sec', 'iat_mean', 'syn_count', 'entropy']
+        metadata_cols = ['flow_id', 'src_ip', 'dst_ip', 'src_port', 'dst_port', 'protocol', 'total_bytes', 'total_packets', 'flow_duration_sec', 'iat_mean', 'syn_count', 'entropy']
         # Safely extract existing columns
         available_cols = [col for col in metadata_cols if col in df.columns]
         metadata = df[available_cols].to_dict(orient='records')
@@ -67,6 +67,8 @@ class SentinelBrain:
                 "flow_id": metadata[i].get('flow_id', 'unknown'),
                 "src_ip": metadata[i].get('src_ip', 'unknown'),
                 "dst_ip": metadata[i].get('dst_ip', 'unknown'),
+                "src_port": metadata[i].get('src_port', 'unknown'),
+                "dst_port": metadata[i].get('dst_port', 'unknown'),
                 "protocol": metadata[i].get('protocol', 'unknown'),
                 "total_bytes": float(metadata[i].get('total_bytes', 0)),
                 "total_packets": int(metadata[i].get('total_packets', 0)),

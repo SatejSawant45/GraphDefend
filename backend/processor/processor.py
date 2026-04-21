@@ -98,6 +98,8 @@ class FlowProcessor:
                 "flow_id": flow_key,
                 "src_ip": packets[0].get('src_ip'),
                 "dst_ip": packets[0].get('dst_ip'),
+                "src_port": packets[0].get('src_port'),
+                "dst_port": packets[0].get('dst_port'),
                 "protocol": packets[0].get('protocol_name'),
                 # The Numerical Features that go to the ML Model:
                 "total_packets": total_packets,
