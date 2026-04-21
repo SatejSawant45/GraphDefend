@@ -14,7 +14,12 @@ class SentinelBrain:
         self.threshold = threshold
         
         # For Demo/Production: Load the pre-trained weights here
-        # self.model.load_state_dict(torch.load('weights.pth'))
+        try:
+            import os
+            weights_path = os.path.join(os.path.dirname(__file__), 'weights.pth')
+            self.model.load_state_dict(torch.load(weights_path))
+        except FileNotFoundError:
+            print("Warning: weights.pth not found. Using random initialization.")
         self.model.eval()
 
     def analyze_flows(self, df: pd.DataFrame):

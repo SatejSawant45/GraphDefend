@@ -1,0 +1,6 @@
+cd /home/satej/Documents/Code_Repositories/Repos/GraphDefend
+source venv/bin/activate
+python3 local_demo_script/simulate_attack.py --mode tcp --threads 20 --duration 10
+
+for simulate_attack.py
+

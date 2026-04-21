@@ -1,6 +1,6 @@
 import json
 import logging
-from scapy.all import sniff, IP, TCP, UDP, conf
+from scapy.all import sniff, IP, IPv6, TCP, UDP, conf
 import time
 from datetime import datetime
 import threading
@@ -50,15 +50,25 @@ def packet_callback(packet):
     """
     packet_data = {}
     
-    # Check if packet has an IP layer
-    if IP in packet:
+    # Check if packet has an IP or IPv6 layer
+    if IP in packet or IPv6 in packet:
+        is_ipv6 = IPv6 in packet
+        layer = packet[IPv6] if is_ipv6 else packet[IP]
+
         packet_data["timestamp"] = time.time()
         packet_data["time_hr"] = datetime.fromtimestamp(packet_data["timestamp"]).strftime('%Y-%m-%d %H:%M:%S.%f')
-        packet_data["src_ip"] = packet[IP].src
-        packet_data["dst_ip"] = packet[IP].dst
-        packet_data["ip_len"] = packet[IP].len
-        packet_data["ttl"] = packet[IP].ttl
-        packet_data["proto"] = packet[IP].proto
+        packet_data["src_ip"] = layer.src
+        packet_data["dst_ip"] = layer.dst
+        
+        # IP vs IPv6 attribute naming differences in Scapy
+        if is_ipv6:
+            packet_data["ip_len"] = layer.plen # Payload length for IPv6
+            packet_data["ttl"] = layer.hlim    # Hop limit for IPv6
+            packet_data["proto"] = layer.nh    # Next header for IPv6
+        else:
+            packet_data["ip_len"] = layer.len
+            packet_data["ttl"] = layer.ttl
+            packet_data["proto"] = layer.proto
         
         # Check for TCP layer
         if TCP in packet:
@@ -81,7 +91,7 @@ def packet_callback(packet):
             packet_data["protocol_name"] = "OTHER"
             packet_data["src_port"] = 0
             packet_data["dst_port"] = 0
-            packet_data["payload_len"] = len(packet[IP].payload)
+            packet_data["payload_len"] = len(layer.payload)
             packet_data["tcp_flags"] = "N/A"
 
         # Add the packet to the global buffer
@@ -106,9 +116,9 @@ def start_sniffer(interface=None, packet_count=0):
     sender_thread = threading.Thread(target=send_packets_to_server, daemon=True)
     sender_thread.start()
     
-    # Sniff strictly IP traffic, without storing packets in memory (store=False)
+    # Sniff both IP and IPv6 traffic, without storing packets in memory
     # This ensures the script can run forever without eating up RAM.
-    sniff(iface=interface, prn=packet_callback, store=False, count=packet_count, filter="ip")
+    sniff(iface=interface, prn=packet_callback, store=False, count=packet_count, filter="ip or ip6")
 
 
 if __name__ == "__main__":

@@ -11,7 +11,7 @@ interface HeaderProps {
 }
 
 export default function Header({ timeRange, setTimeRange, autoRefresh, setAutoRefresh, isUnderAttack, onSimulateAttack }: HeaderProps) {
-  const timeRanges = ['1h', '6h', '24h', '7d', '30d'];
+  const timeRanges = ['1h', '6h', '24h', '7d'];
 
   return (
     <header className={`border-b transition-colors ${isUnderAttack ? 'border-red-500/30 bg-red-950/10' : 'border-border bg-card/50'} backdrop-blur-sm`}>

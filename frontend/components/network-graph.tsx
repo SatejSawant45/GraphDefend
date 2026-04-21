@@ -38,6 +38,16 @@ export default function NetworkGraph({ threatLevel = 7.3, mlData = [] }: Network
     { from: 'web1', to: 'server', suspicious: false },
   ];
 
+  // Helper to format long IPs (especially IPv6)
+  const formatIP = (ip: string) => {
+    if (ip.includes(':') && ip.length > 15) {
+      const parts = ip.split(':');
+      // Format as 2409:40c2...3d81
+      return `${parts[0]}:${parts[1]}...${parts[parts.length - 1]}`;
+    }
+    return ip.length > 12 ? ip.substring(0, 12) + "..." : ip;
+  };
+
   // Map real data if available
   if (mlData && mlData.length > 0) {
     const freshNodes: Node[] = [];
@@ -135,7 +145,7 @@ export default function NetworkGraph({ threatLevel = 7.3, mlData = [] }: Network
                   className="pointer-events-none font-mono tracking-tighter"
                   style={{ textShadow: "0px 1px 2px rgba(0,0,0,0.9)" }}
                 >
-                  {node.label.length > 12 ? node.label.substring(0,12) + "..." : node.label}
+                  {formatIP(node.label)}
                 </text>
               </g>
             );

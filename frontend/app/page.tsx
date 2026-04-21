@@ -5,7 +5,8 @@ import Header from '@/components/header';
 import MetricsCards from '@/components/metrics-cards';
 import AnomalyChart from '@/components/anomaly-chart';
 import NetworkGraph from '@/components/network-graph';
-import ThreatsTable from '@/components/threats-table';
+import HistoricalThreatsTable from '@/components/historical-threats-table';
+import LiveConnectionsTable from '@/components/live-connections-table';
 import BaselineProgress from '@/components/baseline-progress';
 import AlertsPanel from '@/components/alerts-panel';
 import ThreatHeartbeat from '@/components/threat-heartbeat';
@@ -90,6 +91,12 @@ export default function Dashboard() {
           <NetworkGraph threatLevel={threatLevel} mlData={mlData} />
         </div>
 
+        {/* Live Nodes Table directly below the Graph */}
+        <section className="mb-6">
+          <LiveConnectionsTable data={mlData} />
+          <HistoricalThreatsTable historyData={mlData} />
+        </section>
+
         {/* Second Row - Threat Heartbeat & Feature Vectors */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
           <div>
@@ -119,11 +126,6 @@ export default function Dashboard() {
             <BaselineProgress />
           </div>
         </div>
-
-        {/* Threats Table */}
-        <section>
-          <ThreatsTable mlData={mlData} />
-        </section>
       </main>
     </div>
   );
