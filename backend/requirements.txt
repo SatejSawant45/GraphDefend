@@ -1,2 +1,12 @@
 scapy==2.7.0
 pandas==2.2.0
+pyarrow
+numpy
+torch
+torch-geometric
+networkx
+scikit-learn
+requests
+fastapi
+uvicorn
+python-dotenv

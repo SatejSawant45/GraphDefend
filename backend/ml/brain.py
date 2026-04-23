@@ -1,83 +1,113 @@
 import torch
 import pandas as pd
+import numpy as np
+import os
+from collections import deque
 from .pipeline import DataPipeline
 from .autoencoder import AnomalyAutoencoder, compute_reconstruction_error
+from .gnn import GraphAnomalyAE, compute_gnn_reconstruction_error
+from processor.processor import GraphProcessor
 
 class SentinelBrain:
     """
-    The Intelligence Core that merges Layer 2 (Processor) with Layer 3 (PyTorch).
-    Evaluates real-time anomaly thresholds without relying on IoCs.
+    Stabilized Sentinel Brain for Production Dashboards.
+    Uses Ratio-based detection and Structural Delta Boosts.
     """
-    def __init__(self, input_dim=17, threshold=0.05):
+    def __init__(self, input_dim=17, window_size=500):
         self.pipeline = DataPipeline()
-        self.model = AnomalyAutoencoder(input_dim=input_dim)
-        self.threshold = threshold
+        self.pipeline.load_scaler() 
+        self.graph_proc = GraphProcessor()
+        self.flow_history = deque(maxlen=window_size)
+        self.seen_ips = set()
         
-        # For Demo/Production: Load the pre-trained weights here
-        try:
-            import os
-            weights_path = os.path.join(os.path.dirname(__file__), 'weights.pth')
-            self.model.load_state_dict(torch.load(weights_path))
-        except FileNotFoundError:
-            print("Warning: weights.pth not found. Using random initialization.")
+        # Calibration Baselines (Realistic floors for CID-IDS2017)
+        self.baseline = {
+            "flow": 0.20,
+            "struct": 0.50
+        }
+        self.alpha = 0.05 
+        
+        self.model = AnomalyAutoencoder(input_dim=input_dim)
+        self.gnn_model = GraphAnomalyAE(node_in_dim=6, edge_in_dim=14)
+        
+        self._load_weights()
         self.model.eval()
+        self.gnn_model.eval()
+
+    def _load_weights(self):
+        ml_dir = os.path.dirname(__file__)
+        ae_weights = os.path.join(ml_dir, 'weights.pth')
+        gnn_weights = os.path.join(ml_dir, 'gnn_weights.pth')
+        try:
+            if os.path.exists(ae_weights):
+                self.model.load_state_dict(torch.load(ae_weights, map_location=torch.device('cpu')))
+            if os.path.exists(gnn_weights):
+                self.gnn_model.load_state_dict(torch.load(gnn_weights, map_location=torch.device('cpu')))
+        except Exception: pass
 
     def analyze_flows(self, df: pd.DataFrame):
-        """
-        Takes the Layer 2 Pandas DataFrame, pre-processes it, and outputs Threat Levels.
-        """
-        if df.empty:
-            return []
+        if df.empty: return []
             
-        # Keep original metadata for the UI (Layer 4)
-        metadata_cols = ['flow_id', 'src_ip', 'dst_ip', 'src_port', 'dst_port', 'protocol', 'total_bytes', 'total_packets', 'flow_duration_sec', 'iat_mean', 'syn_count', 'entropy']
-        # Safely extract existing columns
-        available_cols = [col for col in metadata_cols if col in df.columns]
-        metadata = df[available_cols].to_dict(orient='records')
-        
-        # 1. Pipeline: Scale and Encode
+        # 1. Flow Inference
         X_scaled = self.pipeline.preprocess(df, is_training=False)
+        if X_scaled.size == 0: return []
+        f_errors = compute_reconstruction_error(self.model, torch.FloatTensor(X_scaled))
         
-        if X_scaled.size == 0:
-            return []
+        # 2. Structural Inference
+        # Update history
+        for flow in df.to_dict(orient='records'): self.flow_history.append(flow)
+        
+        # Build context graph
+        df_context = pd.DataFrame(list(self.flow_history))
+        X_hist = self.pipeline.preprocess(df_context, is_training=False)
+        df_gnn = df_context.copy()
+        df_gnn[self.pipeline.numeric_cols] = X_hist[:, :len(self.pipeline.numeric_cols)]
+        
+        graph_data = self.graph_proc.build_graph(df_gnn)
+        s_errors = np.zeros(len(df))
+        if graph_data:
+            _, edge_err = compute_gnn_reconstruction_error(self.gnn_model, graph_data)
+            s_errors = edge_err[-len(df):]
             
-        # 2. Convert to PyTorch Tensor
-        x_tensor = torch.FloatTensor(X_scaled)
-        
-        # 3. Model Inference: Get Reconstruction Error
-        errors = compute_reconstruction_error(self.model, x_tensor)
-        
         results = []
-        for i, error in enumerate(errors):
-            # Dynamic Scoring Logic
-            threat_score = min(error / self.threshold, 1.0)
+        for i, (f_err, s_err) in enumerate(zip(f_errors, s_errors)):
+            # STABILIZED RATIO SCORING
+            # If current error is 2.5x the baseline, it's 100% anomaly
+            f_ratio = float(f_err) / max(self.baseline["flow"], 0.01)
+            f_score = min(max((f_ratio - 1.1) / 1.5, 0.0), 1.0)
             
-            # Anomaly determination
-            if threat_score < 0.4:
-                status = "Safe"
-                color = "Green"
-            elif threat_score < 0.8:
-                status = "Warning"
-                color = "Yellow"
+            s_ratio = float(s_err) / max(self.baseline["struct"], 0.01)
+            s_score = min(max((s_ratio - 1.1) / 1.5, 0.0), 1.0)
+            
+            # --- NEW IP ALERT ---
+            dst_ip = df.iloc[i].get('dst_ip', '')
+            if dst_ip not in self.seen_ips and len(self.seen_ips) > 0:
+                s_score = max(s_score, 0.8) # Instant high structural anomaly
+            self.seen_ips.add(dst_ip)
+            self.seen_ips.add(df.iloc[i].get('src_ip', ''))
+
+            # Ensemble
+            threat_score = (f_score * 0.4) + (s_score * 0.6)
+            
+            # Calibration: Only adapt if traffic is safe
+            if threat_score < 0.2:
+                self.baseline["flow"] = (1-self.alpha) * self.baseline["flow"] + self.alpha * float(f_err)
+                self.baseline["struct"] = (1-self.alpha) * self.baseline["struct"] + self.alpha * float(s_err)
+
+            # Labels
+            if threat_score < 0.35: status, color = "Safe", "Green"
+            elif threat_score < 0.75: status, color = "Suspicious", "Yellow"
             else:
-                status = "Critical (Anomaly Detected)"
+                status = "Critical (Lateral Movement)" if s_score > 0.6 else "Critical (Volume Spike)"
                 color = "Red"
                 
             results.append({
-                "flow_id": metadata[i].get('flow_id', 'unknown'),
-                "src_ip": metadata[i].get('src_ip', 'unknown'),
-                "dst_ip": metadata[i].get('dst_ip', 'unknown'),
-                "src_port": metadata[i].get('src_port', 'unknown'),
-                "dst_port": metadata[i].get('dst_port', 'unknown'),
-                "protocol": metadata[i].get('protocol', 'unknown'),
-                "total_bytes": float(metadata[i].get('total_bytes', 0)),
-                "total_packets": int(metadata[i].get('total_packets', 0)),
-                "duration": float(metadata[i].get('flow_duration_sec', 0)),
-                "iat": float(metadata[i].get('iat_mean', 0)),
-                "syn_count": int(metadata[i].get('syn_count', 0)),
-                "entropy": float(metadata[i].get('entropy', 0.0)),
-                "reconstruction_error": float(error),
+                "flow_id": df.iloc[i].get('flow_id', 'unknown'),
+                "src_ip": df.iloc[i].get('src_ip', 'unknown'),
+                "dst_ip": df.iloc[i].get('dst_ip', 'unknown'),
                 "threat_score": float(threat_score),
+                "flow_error": float(f_err),
+                "structural_error": float(s_err),
                 "status": status,
                 "color": color
             })

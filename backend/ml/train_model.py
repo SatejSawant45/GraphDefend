@@ -78,6 +78,19 @@ def load_and_map_data(data_dir, max_rows=500000):
         return 'OTHER'
     mapped_df['protocol'] = df['Protocol'].apply(map_proto)
     
+    # 8. Synthetic IP Proxies (FOR GNN TRAINING when real IPs are missing)
+    if 'Init Fwd Win Bytes' in df.columns:
+        mapped_df['src_ip'] = df['Init Fwd Win Bytes'].astype(str)
+        mapped_df['dst_ip'] = df['Init Bwd Win Bytes'].astype(str)
+    else:
+        mapped_df['src_ip'] = "192.168.1.1"
+        mapped_df['dst_ip'] = "10.0.0.1"
+        
+    # 9. Additional Metadata for GraphProcessor
+    mapped_df['dst_port'] = df['Destination Port'] if 'Destination Port' in df.columns else 0
+    # Proxy entropy using Avg Packet Size or something similar if missing
+    mapped_df['entropy'] = df['Avg Packet Size'] / 1500.0 if 'Avg Packet Size' in df.columns else 0.0
+        
     return mapped_df
 
 

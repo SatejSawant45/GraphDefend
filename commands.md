@@ -55,6 +55,10 @@ A standalone packet capture agent that can run on remote machines to stream data
 cd endpoint_agent
 # Activate a virtual environment and install requirements.txt
 sudo python3 sniffer.py
+
+or use this
+
+sudo ../venv/bin/python3 sniffer.py
 ```
 
 ---

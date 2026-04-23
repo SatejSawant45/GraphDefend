@@ -36,18 +36,21 @@ class DataPipeline:
         if df.empty:
             return np.array([])
             
+        # Work on a copy to avoid side-effects
+        df_proc = df.copy()
+        
         # Log Transformations for highly skewed features (bytes)
         # We use log1p to avoid log(0) issues when bytes=0
-        df['total_bytes'] = np.log1p(df['total_bytes'])
+        df_proc['total_bytes'] = np.log1p(df_proc['total_bytes'])
         
         # One-hot encode protocols
-        df = self._one_hot_encode(df)
+        df_proc = self._one_hot_encode(df_proc)
         
         # Extract purely the numerical feature columns we want
         feature_cols = self.numeric_cols + [f'proto_{p}' for p in self.known_protocols]
         
         # Filter
-        X = df[feature_cols].copy()
+        X = df_proc[feature_cols].copy()
         
         # Scaling [0, 1]
         if is_training:
@@ -60,6 +63,10 @@ class DataPipeline:
                 
         # Transform and return exactly the array PyTorch wants
         X_scaled = self.scaler.transform(X)
+        
+        # Robustness: Clip values to [0, 1] as Autoencoder expects normalized input
+        X_scaled = np.clip(X_scaled, 0, 1)
+        
         return X_scaled
 
     def save_scaler(self):

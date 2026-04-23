@@ -1,6 +1,7 @@
 import json
 import pandas as pd
 import time
+import numpy as np
 from collections import defaultdict
 
 class FlowProcessor:
@@ -82,7 +83,6 @@ class FlowProcessor:
             # Simple Shannon Entropy over payload lengths as a proxy for feature entropy
             try:
                 val_counts = df['payload_len'].value_counts(normalize=True)
-                import numpy as np
                 entropy = -(val_counts * np.log2(val_counts)).sum()
             except Exception:
                 entropy = 0.0
@@ -125,6 +125,93 @@ class FlowProcessor:
         
         # Return a pandas DataFrame ready for Layer 3 (PyTorch / Scikit-Learn)
         return pd.DataFrame(flow_vectors)
+
+class GraphProcessor:
+    """
+    Translates individual flow vectors into a structured Graph (Nodes and Edges).
+    Prepares data for PyTorch Geometric GNN models.
+    """
+    def __init__(self):
+        self.reset()
+
+    def reset(self):
+        self.nodes = {} # IP -> Feature Vector
+        self.edges = [] # List of (src_idx, dst_idx, edge_attr)
+        self.ip_to_idx = {} # IP -> Integer Index
+
+    def build_graph(self, df_flows: pd.DataFrame):
+        """
+        Constructs graph components from a batch of flow vectors.
+        """
+        self.reset()
+        if df_flows.empty:
+            return None
+
+        # 1. Identify all unique IPs (Nodes)
+        all_ips = pd.concat([df_flows['src_ip'], df_flows['dst_ip']]).unique()
+        for idx, ip in enumerate(all_ips):
+            self.ip_to_idx[ip] = idx
+
+        # 2. Extract Edge Features (The 17-dim vectors we already have)
+        # We assume the incoming df_flows has already been processed by the pipeline or contains the raw numeric cols
+        # For simplicity in Phase 1, we use the numeric columns directly.
+        edge_cols = [
+            "total_packets", "total_bytes", "flow_duration_sec",
+            "pkt_len_mean", "pkt_len_max", "pkt_len_min", "pkt_len_std",
+            "iat_mean", "iat_max", "syn_count", "ack_count", "psh_count", "fin_count",
+            "entropy"
+        ]
+        
+        for _, row in df_flows.iterrows():
+            src_idx = self.ip_to_idx[row['src_ip']]
+            dst_idx = self.ip_to_idx[row['dst_ip']]
+            
+            # Edge attributes: numerical features of this specific connection
+            edge_attr = [float(row[col]) for col in edge_cols if col in row]
+            self.edges.append((src_idx, dst_idx, edge_attr))
+
+        # 3. Build Node Features (Aggregated per IP)
+        node_features = []
+        for ip in all_ips:
+            # Stats for this specific IP as a Source
+            src_flows = df_flows[df_flows['src_ip'] == ip]
+            # Stats for this specific IP as a Target
+            dst_flows = df_flows[df_flows['dst_ip'] == ip]
+            
+            degree_out = len(src_flows)
+            degree_in = len(dst_flows)
+            total_sent = src_flows['total_bytes'].sum() if not src_flows.empty else 0
+            total_recv = dst_flows['total_bytes'].sum() if not dst_flows.empty else 0
+            
+            # Unique peers (Structural feature)
+            unique_peers = len(set(src_flows['dst_ip'].tolist() + dst_flows['src_ip'].tolist()))
+            
+            # Diversity of destination ports (Lateral movement indicator)
+            unique_ports = len(src_flows['dst_port'].unique()) if not src_flows.empty else 0
+            
+            # Node feature vector - LOG SCALED to keep values in [0, ~15] range
+            feat = [
+                float(np.log1p(degree_out)),
+                float(np.log1p(degree_in)),
+                float(np.log1p(total_sent) / 10.0), # Squashing further
+                float(np.log1p(total_recv) / 10.0),
+                float(np.log1p(unique_peers)),
+                float(np.log1p(unique_ports))
+            ]
+            node_features.append(feat)
+
+        return {
+            "num_nodes": len(all_ips),
+            "edge_index": [[e[0] for e in self.edges], [e[1] for e in self.edges]],
+            "edge_attr": [e[2] for e in self.edges],
+            "x": node_features,
+            "mapping": self.ip_to_idx
+        }
+
+if __name__ == "__main__":
+    # Quick Test / Demonstration
+    processor = FlowProcessor(time_window_sec=2.0)
+    print("[*] Layer 2: Feature Engineering Processor initialized.")
 
 if __name__ == "__main__":
     # Quick Test / Demonstration
