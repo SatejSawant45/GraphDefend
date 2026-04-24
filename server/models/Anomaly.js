@@ -26,6 +26,12 @@ const AnomalySchema = new mongoose.Schema({
     type: Number,
     required: true
   },
+  total_packets: {
+    type: Number
+  },
+  total_bytes: {
+    type: Number
+  },
   reconstruction_error: {
     type: Number
   },

@@ -7,7 +7,11 @@ import os
 class DataPipeline:
     def __init__(self, scaler_path="scaler.pkl"):
         self.scaler = MinMaxScaler()
-        self.scaler_path = scaler_path
+        
+        # Ensure we always load the scaler from the same directory as this script
+        ml_dir = os.path.dirname(__file__)
+        self.scaler_path = os.path.join(ml_dir, scaler_path) if not os.path.isabs(scaler_path) else scaler_path
+        
         self.fitted = False
         
         # Categorical choices (Protocol)
@@ -60,6 +64,8 @@ class DataPipeline:
         else:
             if not self.fitted:
                 self.load_scaler()
+            if not self.fitted:
+                raise ValueError(f"Scaler not fitted and {self.scaler_path} missing. Cannot transform live data.")
                 
         # Transform and return exactly the array PyTorch wants
         X_scaled = self.scaler.transform(X)

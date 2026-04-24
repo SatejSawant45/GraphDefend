@@ -41,11 +41,16 @@ export default function Dashboard() {
     // 2. Listen for live data from the Python ML -> Node Pipeline
     socket.on('network-update', (data: any[]) => {
       if (data && data.length > 0) {
+         const now = Date.now();
+         
          setMlData(prevData => {
            // Create a new array blending the latest update with previous history
            // Deduplicate using flow_id
            const newItemsDict = new Map();
-           data.forEach(item => newItemsDict.set(item.flow_id, item));
+           data.forEach(item => {
+             item.last_seen = now; // Stamp it with current time
+             newItemsDict.set(item.flow_id, item);
+           });
            const filteredPrev = prevData.filter(item => !newItemsDict.has(item.flow_id));
            
            const merged = [...data, ...filteredPrev].slice(0, 100);
@@ -58,8 +63,24 @@ export default function Dashboard() {
       }
     });
 
+    // 3. Cleanup stale flows that haven't sent data in 60 seconds
+    const cleanupInterval = setInterval(() => {
+      setMlData(prevData => {
+        const now = Date.now();
+        return prevData.filter(item => {
+          // If it's a live connection with a timestamp, age it out after 60 seconds
+          if (item.last_seen) {
+            return (now - item.last_seen) < 60000;
+          }
+          // Keep historical data that doesn't have a timestamp
+          return true;
+        });
+      });
+    }, 5000); // Check every 5 seconds
+
     return () => {
       socket.off('network-update');
+      clearInterval(cleanupInterval);
     };
   }, []);
 
